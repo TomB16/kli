@@ -1,0 +1,75 @@
+#!/bin/bash
+
+#
+# This file is part of videokit-kde.
+# Copyright (C) 2025 Tom Brown
+#
+# videokit-kde is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# videokit-kde is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+
+
+# source utility package
+
+[[ -n "${__KLI_GITHUB_LIB_SH__}" ]] && return ; readonly __KLI_GITHUB_LIB_SH__=1
+
+
+# configuration
+
+github::projectDir() {
+
+    local PROJECT_DIR="$( kli::getProjectDir )/github/$( kli::detectProject )"
+
+    echo "$PROJECT_DIR"
+}
+
+
+github::createDir() {
+
+    local PROJECT_DIR="$( github::projectDir )"
+    if [[ ! -e "$PROJECT_DIR" ]]; then
+        app::message "info echo log" "creating $PROJECT_DIR directory"
+        mkdir -p "$PROJECT_DIR"
+    fi
+}
+
+
+github::createRepo() {
+
+    local PROJECT="$( kli::detectProject )"
+    local PROJECT_DIR="$( github::projectDir )"
+
+    cd "$PROJECT_DIR"
+    echo "$PWD"
+
+    if [[ "$KLI_PROJECT_TYPE" == "BASH" ]]; then
+
+        if   [[ ! -d "src"     ]]; then app::message "warning echo" "no src directory"
+        elif [[ ! -e LICENSE   ]]; then app::message "warning echo" "no LICENSE file"
+        elif [[ ! -e README.md ]]; then app::message "warning echo" "no README.md file"
+        else
+
+            #app::message "info echo log" "git init in directory $PWD"
+            #git init --initial-branch=master
+
+            app::message "info echo log" "git add src LICENSE README.md"
+            git add src LICENSE README.md
+
+            #echo "git commit -m \"initial commit\""
+
+
+            echo "gh repo create $PROJECT --public --source=. --remote=origin --push"
+
+        fi
+    fi
+}

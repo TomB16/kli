@@ -1,0 +1,183 @@
+#!/bin/bash
+
+#
+# This file is part of videokit-kde.
+# Copyright (C) 2025 Tom Brown
+#
+# videokit-kde is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# videokit-kde is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+
+
+# source utility package
+
+[[ -n "${__KLI_LIB_SH__}" ]] && return ; readonly __KLI_LIB_SH__=1
+
+
+source bashdev-app
+source bashdev-string
+
+
+# configs
+
+CONFIG_GLOBAL=/usr/share/kli/kli.conf
+CONFIG_USER=~/.config/kli/kli.conf
+CONFIG_USER="${CONFIG_USER/#~/$HOME}"
+CONFIG_LOCAL=""
+
+
+# configuration
+
+kli::configLoad() {
+
+    # load a few global vars
+
+	KLI_DEV_ROOT_DIR=$(    	app::configVar KLI DEV_ROOT_DIR    );	KLI_DEV_ROOT_DIR="${KLI_DEV_ROOT_DIR:-~/Development}"
+	KLI_DEV_ROOT_DIR=$( string::stripQuotes "$KLI_DEV_ROOT_DIR" );  KLI_DEV_ROOT_DIR="${KLI_DEV_ROOT_DIR/#~/$HOME}"
+
+
+    # identify per-project config file
+
+    CONFIG_LOCAL="$( kli::getProjectDir )/.kli.conf"
+
+	KLI_TEMPLATE_ROOT_DIR=$( kli::configVar TEMPLATES ROOT_DIR );	KLI_TEMPLATE_ROOT_DIR="${KLI_TEMPLATE_ROOT_DIR:-~/.config/kli/Templates}";	KLI_TEMPLATE_ROOT_DIR="${KLI_TEMPLATE_ROOT_DIR/#~/$HOME}"
+	KLI_DEFAULT_LICENSE=$( 	app::configVar KLI DEFAULT_LICENSE );	KLI_DEFAULT_LICENSE="${KLI_DEFAULT_LICENSE:-GPLv3}"
+	KLI_PROJECT_LICENSE=$( 	kli::configVar PROJECT LICENSE     );	KLI_PROJECT_LICENSE="${KLI_PROJECT_LICENSE:-$KLI_DEFAULT_LICENSE.xx}"
+	KLI_LOG=$( 	            app::configVar KLI LOG             );	KLI_LOG="${KLI_LOG:-~/.local/state/kli/kli.log}";                           APP_LOG="${KLI_LOG/#~/$HOME}"
+	KLI_PROJECT_TYPE=$(     kli::configVar PROJECT TYPE        );	KLI_PROJECT_TYPE="${KLI_PROJECT_TYPE:-BASH}"
+
+}
+
+
+kli::configVar() {
+
+	local VALUE=""
+
+	[[ -f $CONFIG_LOCAL               ]] && VALUE=$(crudini --get "$CONFIG_LOCAL" "$1" "$2" 2>/dev/null )
+	[[ ! -f $CONFIG_USER              ]] && cp "$CONFIG_GLOBAL" "$CONFIG_USER"
+	[[ -z "$VALUE" && -f $CONFIG_USER ]] && VALUE=$(crudini --get "$CONFIG_USER"  "$1" "$2" 2>/dev/null )
+
+
+	echo $(string::stripQuotes "$VALUE")
+
+}
+
+
+kli::configVarSet() {
+
+    app::message "info echo log" "setting local variable $1 $2 to $3"
+    crudini --set "$CONFIG_LOCAL" "$1" "$2" "$3"
+
+}
+
+
+kli::inProject() {
+
+    local RESULT
+    [[ -n "$( kli::detectProject )" ]] && RESULT=1 || RESULT=0
+
+
+    return "$RESULT"
+}
+
+
+kli::detectProject() {
+
+    local DIR_CURRENT="$PWD"
+    local PROJECT
+
+
+    # check to see if we are under the development directory structure
+
+    if [[ "$DIR_CURRENT" == "$KLI_DEV_ROOT_DIR"* ]]; then
+		PATH_REL="${DIR_CURRENT#$KLI_DEV_ROOT_DIR/}"
+		PROJECT="${PATH_REL%%/*}"
+    fi
+
+
+    echo "$PROJECT"
+}
+
+
+kli::detectRepo() {
+
+    local DIR_CURRENT="$PWD"
+    local PROJECT="$( kli::detectProject )"
+    local PROJECT_DIR="$( kli::getProjectDir )"
+    local REPO
+
+
+    # check to see if we are in a repo
+
+    if [[ kli::inProject ]]; then
+        if [[ "$DIR_CURRENT" == "$KLI_DEV_ROOT_DIR"* ]]; then
+            PATH_REL="${DIR_CURRENT#$PROJECT_DIR/}"
+            REPO="${PATH_REL%%/*}"
+        fi
+    fi
+
+
+    # only github and AUR repos detected
+
+    [[ "$REPO" == "github" || "$REPO" == "AUR" ]] || REPO=""
+
+
+    echo "$REPO"
+}
+
+
+kli::getProjectDir() {
+
+    local PROJECT="$( kli::detectProject )"
+    echo "$KLI_DEV_ROOT_DIR/$PROJECT"
+
+}
+
+
+kli::detectProjectType() {
+
+    local dir="$PWD"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -f "$dir/CMakeLists.txt" ]]; then
+            echo "cmake"
+            return 0
+        elif [[ -f "$dir/Makefile" ]]; then
+            echo "make"
+            return 0
+        elif [[ -f "$dir/meson.build" ]]; then
+            echo "meson"
+            return 0
+        elif [[ -d "$dir/.git" ]]; then
+            echo "git"
+            return 0
+        elif [[ -f "$dir/package.json" ]]; then
+            echo "node"
+            return 0
+        elif [[ -f "$dir/pyproject.toml" ]] || [[ -f "$dir/setup.py" ]]; then
+            echo "python"
+            return 0
+        elif [[ -f "$dir/.kdev4" ]] || [[ -f "$dir/.kdevproject" ]]; then
+            echo "kdevelop"
+            return 0
+        elif [[ -d "$dir/.plasmoid" ]] || [[ -f "$dir/metadata.desktop" ]]; then
+            echo "plasmoid"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+    echo "unknown"
+    return 1
+}
+
+
+

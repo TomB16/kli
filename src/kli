@@ -1,0 +1,98 @@
+#!/bin/bash
+
+#
+# This file is part of videokit-kde.
+# Copyright (C) 2025 Tom Brown
+#
+# videokit-kde is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# videokit-kde is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+
+
+# masthead
+
+source bashdev-app
+
+APP_NAME=$(basename "$0")
+APP_VERSION=0.0.1
+APP_AUTHOR="Tom Brown"
+APP_YEAR="2025"
+APP_LICENSE="GPLv3"
+APP_DESC="kli development support utility"
+
+app::masthead "$APP_NAME" "$APP_VERSION" "$APP_AUTHOR" "$APP_YEAR" "$APP_LICENSE" "$APP_DESC"
+
+
+# needed for config information
+
+source ./kli-lib
+
+kli::configLoad
+
+
+# parameter handling
+
+source bashdev-param
+
+param::add -n "license"         -d "license [GPLv3|MIT|etc]"                                    -r false -t string  -s l    -l license -D $KLI_DEFAULT_LICENSE
+param::add -n "version"         -d "report version"                                             -r false -t flag    -s v    -l version
+param::add -n "aur"             -d "AUR"                                                        -r false -t bool    -s a    -l aur
+param::add -n "github"          -d "github"                                                     -r false -t bool    -s r    -l github
+param::add -n "type"            -d "project type [BASH|C++|PlasmoidQML|PlasmoidQML-C++]"        -r false -t string  -s t    -l type
+param::add -n "count"           -d "<num> count"                                                -r false -t string  -s c    -l count   -D 100
+param::parse "$@"
+
+
+
+echo "info:  development root   $KLI_DEV_ROOT_DIR"
+echo "info:  detected project   $( kli::detectProject )"
+echo "info:  default license    $KLI_DEFAULT_LICENSE"
+echo "info:  project license    $KLI_PROJECT_LICENSE"
+echo "info:  project type       $KLI_PROJECT_TYPE"
+echo
+
+
+#source kli-aur-lib
+source ./kli-github-lib
+source kli-template-lib
+
+
+# actions
+
+if [[ "$( param::getPositional )" == "project config show"                                ]];          then app::message "info echo" "project config";  cat "$CONFIG_LOCAL"; fi
+[[ "$( param::getPositional )" == "project config" && "$( param::get aur )"    == "true"  ]]           && kli::configVarSet PROJECT AUR true
+[[ "$( param::getPositional )" == "project config" && "$( param::get aur )"    == "false" ]]           && kli::configVarSet PROJECT AUR false
+[[ "$( param::getPositional )" == "project config" && "$( param::get github )" == "true"  ]]           && kli::configVarSet PROJECT GITHUB true
+[[ "$( param::getPositional )" == "project config" && "$( param::get github )" == "false" ]]           && kli::configVarSet PROJECT GITHUB false
+[[ "$( param::getPositional )" == "project config" && -n "$( param::get license )"        ]]           && kli::configVarSet PROJECT LICENSE "$( param::get license )"
+if [[ "$( param::getPositional )" == "project config" && -n "$( param::get type )"        ]];          then kli::configVarSet PROJECT TYPE "$( param::get type )";  fi
+
+[[ "$( param::getPositional )" == "git create repo"                                       ]]           && github::createRepo
+
+[[ "$( param::getPositional )" == "template fetch license"   ]] && template::fetchLicense
+[[ "$( param::getPositional )" == "template fetch README.md" ]] && template::fetchREADMEmd
+
+[[ $( param::get version   ) == "true" ]]                       && echo "v$APP_VERSION"
+
+[[ "$( param::getPositional )" == "info show log"   ]]          && app::logShow "$( param::get count )"
+[[ "$( param::getPositional )" == "info trim log"   ]]          && app::logTrim "$( param::get count )"
+[[ "$( param::getPositional )" == "info delete log" ]]          && app::logDelete
+
+
+#[[ kli::inProject ]] && echo "in" || echo "out"
+
+#kli::detectProject
+#kli::detectRepo
+
+#echo "|$(param::get license )|"
+

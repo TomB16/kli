@@ -1,0 +1,134 @@
+#!/bin/bash
+
+#
+# This file is part of videokit-kde.
+# Copyright (C) 2025 Tom Brown
+#
+# videokit-kde is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# videokit-kde is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+
+
+# source utility package
+
+[[ -n "${__KLI_TEMPLATE_LIB_SH__}" ]] && return ; readonly __KLI_TEMPLATE_LIB_SH__=1
+
+
+source  bashdev-app
+source  kli-aur-lib
+source  ./kli-github-lib
+
+
+template::fetchLicense() {
+
+    local LICENSE_TYPE=$( param::get license )
+    local FILENAME_LICENSE="$KLI_TEMPLATE_ROOT_DIR/licenses/LICENSE-$LICENSE_TYPE"
+    local FILENAME_TARGET="./LICENSE"
+
+    app::message "info echo log" "project license $LICENSE_TYPE template file $FILENAME_LICENSE"
+
+    if [[ -n "$( kli::detectProject )" ]]; then
+
+        if [[ "$( kli::configVar PROJECT AUR )" == "true" ]]; then
+            FILENAME_TARGET="$( aur::projectDir )/LICENSE"
+            app::message "info echo log" "writing license to $FILENAME_TARGET"
+            aur::createDir
+            cp "$FILENAME_LICENSE" "$FILENAME_TARGET"
+        fi
+
+        if [[ "$( kli::configVar PROJECT GITHUB )" == "true" ]]; then
+            FILENAME_TARGET="$( github::projectDir )/LICENSE"
+            app::message "info echo log" "writing license to $FILENAME_TARGET"
+            github::createDir
+            cp "$FILENAME_LICENSE" "$FILENAME_TARGET"
+        fi
+
+    else
+        app::message "warning echo" "project not detected"
+    fi
+}
+
+
+template::fetchREADMEmd() {
+
+    local LOCAL_REPO="$( kli::detectRepo )"
+    local LOCAL_PROJECT="$( kli::detectProject )"
+
+
+    echo "$LOCAL_PROJECT $LOCAL_REPO"
+
+    # confirm we're in a project and repo
+
+    if   [[ -z "$LOCAL_PROJECT" ]]; then  app::message "warning echo" "project not detected"
+    elif [[ -z "$LOCAL_REPO"    ]]; then  app::message "warning echo" "repo not detected"
+    else
+
+        if [[ "$LOCAL_REPO" == "github" ]]; then
+
+            if [[ "$( git rev-parse --is-inside-work-tree 2>/dev/null )" == "true" ]]; then
+
+
+                local FILENAME_README="$KLI_TEMPLATE_ROOT_DIR/common/$LOCAL_REPO.$KLI_PROJECT_TYPE.README.md"
+                app::message "info echo" "project README.MD template file $FILENAME_README"
+
+                FILENAME_TARGET="$( github::projectDir )/README.md"
+                if   [[ -e "$FILENAME_TARGET"   ]]; then app::message "warning echo" "target file exists $FILENAME_TARGET"
+                elif [[ ! -e "$FILENAME_README" ]]; then app::message "warning echo" "template does not exist $FILENAME_README"
+                else
+                    app::message "info echo log" "copying template $FILENAME_README to $FILENAME_TARGET"
+                    cp "$FILENAME_README" "$FILENAME_TARGET"
+                fi
+
+            else
+                app::message "warning echo" "this is not an established github repo -> kli git create repo"
+            fi
+        fi
+
+    fi
+}
+
+
+kli::detectProjectType() {
+
+    local dir="$PWD"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -f "$dir/CMakeLists.txt" ]]; then
+            echo "cmake"
+            return 0
+        elif [[ -f "$dir/Makefile" ]]; then
+            echo "make"
+            return 0
+        elif [[ -f "$dir/meson.build" ]]; then
+            echo "meson"
+            return 0
+        elif [[ -d "$dir/.git" ]]; then
+            echo "git"
+            return 0
+        elif [[ -f "$dir/package.json" ]]; then
+            echo "node"
+            return 0
+        elif [[ -f "$dir/pyproject.toml" ]] || [[ -f "$dir/setup.py" ]]; then
+            echo "python"
+            return 0
+        elif [[ -f "$dir/.kdev4" ]] || [[ -f "$dir/.kdevproject" ]]; then
+            echo "kdevelop"
+            return 0
+        elif [[ -d "$dir/.plasmoid" ]] || [[ -f "$dir/metadata.desktop" ]]; then
+            echo "plasmoid"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+    echo "unknown"
+    return 1
+}
