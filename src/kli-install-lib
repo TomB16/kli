@@ -1,0 +1,43 @@
+#!/bin/bash
+
+#
+# This file is part of videokit-kde.
+# Copyright (C) 2025 Tom Brown
+#
+# videokit-kde is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# videokit-kde is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+
+
+# source utility package
+
+[[ -n "${__KLI_INSTALL_LIB_SH__}" ]] && return ; readonly __KLI_INSTALL_LIB_SH__=1
+
+
+source  bashdev-app
+source  kli-lib
+
+
+install::local() {
+
+    if [[ "$KLI_PROJECT_TYPE" == "BASH" ]]; then
+
+        local PROJECT="$( kli::detectProject )"
+        local PROJECT_SOURCE="$( github::projectDir )/src/*"
+        local INSTALL_TARGET="/usr/local/bin"
+
+        app::message "info echo log" "installing project $PROJECT to $INSTALL_TARGET (password required)"
+        sudo cp $PROJECT_SOURCE "$INSTALL_TARGET"
+
+    fi
+}

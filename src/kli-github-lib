@@ -24,11 +24,16 @@
 [[ -n "${__KLI_GITHUB_LIB_SH__}" ]] && return ; readonly __KLI_GITHUB_LIB_SH__=1
 
 
+source bashdev-string
+source kli-lib
+
+
 # configuration
 
-github::projectDir() {
+github::getProjectDir() {
 
-    local PROJECT_DIR="$( kli::getProjectDir )/github/$( kli::detectProject )"
+    local PROJECT_DIR="$KLI_PROJECT_DIR/github/$KLI_PROJECT"
+
 
     echo "$PROJECT_DIR"
 }
@@ -44,13 +49,11 @@ github::createDir() {
 }
 
 
-github::createRepo() {
+github::createRepoOld() {
 
     local PROJECT="$( kli::detectProject )"
-    local PROJECT_DIR="$( github::projectDir )"
+    local PROJECT_DIR="$( github::getProjectDir )"
 
-    cd "$PROJECT_DIR"
-    echo "$PWD"
 
     if [[ "$KLI_PROJECT_TYPE" == "BASH" ]]; then
 
@@ -59,17 +62,124 @@ github::createRepo() {
         elif [[ ! -e README.md ]]; then app::message "warning echo" "no README.md file"
         else
 
-            #app::message "info echo log" "git init in directory $PWD"
-            #git init --initial-branch=master
+            app::message "info echo log" "git init in directory $PWD"
+            git init --initial-branch=master
 
-            app::message "info echo log" "git add src LICENSE README.md"
-            git add src LICENSE README.md
+            if [[ $? ]]; then
+                app::message "info echo log" "git add src LICENSE README.md"
+                git add src LICENSE README.md
+            fi
 
-            #echo "git commit -m \"initial commit\""
+            if [[ $? ]]; then
+                app::message "info echo log" "git initial commit"
+                git commit -m "initial commit"
+            fi
 
-
-            echo "gh repo create $PROJECT --public --source=. --remote=origin --push"
-
+            if [[ $? ]]; then
+                app::message "info echo log" "git create remote repo"
+                gh repo create $PROJECT --public --source=. --remote=origin --push
+            fi
         fi
     fi
+}
+
+
+github::createRepo() {
+
+    if [[ "$KLI_REPO_GITHUB" == true ]]; then
+
+        app::message "info echo log" "git init in directory $PWD"
+        git init --initial-branch=master
+
+        if [[ $? ]]; then
+            github::gitAddAll
+        fi
+
+        if [[ $? ]]; then
+            app::message "info echo log" "git initial commit"
+            git commit -m "initial commit"
+        fi
+
+        if [[ $? ]]; then
+            app::message "info echo log" "git create remote repo"
+            gh repo create $PROJECT --public --source=. --remote=origin --push
+        fi
+
+    else
+
+        app::message "info echo" "no github repo for this project"
+
+    fi
+}
+
+
+github::updateRepo() {
+
+    local COMMENT="$1:-no comment"
+
+    if [[ "$KLI_REPO_GITHUB" == true ]]; then
+
+        app::message "info echo log" "git update in directory $PWD"
+
+        github::gitAddAll
+
+        if [[ $? ]]; then
+            app::message "info echo log" "git initial commit"
+            git commit -m "$COMMENT"
+        fi
+
+        if [[ $? ]]; then
+            app::message "info echo log" "git push"
+            git push
+        fi
+
+    else
+
+        app::message "info echo" "no github repo for this project"
+
+    fi
+}
+
+github::gitAddAll() {
+
+    local FILE_MAP="$KLI_PROJECT_DIR/file.map"
+
+    if [[ -e "$FILE_MAP" ]]; then
+        cd "$( github::getProjectDir )"
+        while IFS= read -r line; do
+
+            # Skip blank lines and comments
+
+            [[ -z "$line" ]] && continue
+            [[ "$line" =~ ^[[:space:]]*';' ]] && continue
+
+            # Process lines starting with "
+
+            if [[ "$line" =~ ^[[:space:]]*\" ]]; then
+                IFS=',' read -r FILENAME TEMPLATE DEVELOPMENT RELEASE REPOSITORY PERMISSIONS <<< "$line"
+
+                REPOSITORY="$( string::trim $REPOSITORY )"
+
+                if [[ "$REPOSITORY" == *"github"* ]]; then
+
+                    FILENAME="$( string::stripQuotes $FILENAME )"
+                    if [[ -e "$FILENAME" ]]; then
+                        app::message "info echo log" "project $KLI_PROJECT git add $FILENAME"
+                        git add "$FILENAME"
+                    else
+                        app::message "warning echo log" "project $KLI_PROJECT file $FILENAME missing so cannot add to git repository"
+                    fi
+
+                fi
+
+            fi
+
+        done < "$FILE_MAP"
+
+    else
+
+        app::message "warning echo log" "project $KLI_PROJECT file.map not available"
+
+    fi
+
 }

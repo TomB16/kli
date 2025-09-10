@@ -1,4 +1,4 @@
-#!/bin/bash
+ #!/bin/bash
 
 #
 # This file is part of videokit-kde.
@@ -35,7 +35,7 @@ app::masthead "$APP_NAME" "$APP_VERSION" "$APP_AUTHOR" "$APP_YEAR" "$APP_LICENSE
 
 # needed for config information
 
-source ./kli-lib
+source kli-lib
 
 kli::configLoad
 
@@ -44,55 +44,84 @@ kli::configLoad
 
 source bashdev-param
 
-param::add -n "license"         -d "license [GPLv3|MIT|etc]"                                    -r false -t string  -s l    -l license -D $KLI_DEFAULT_LICENSE
+param::add -n "license"         -d "license [GPLv3|MIT|etc]"                                    -r false -t string  -s l    -l license
 param::add -n "version"         -d "report version"                                             -r false -t flag    -s v    -l version
 param::add -n "aur"             -d "AUR"                                                        -r false -t bool    -s a    -l aur
 param::add -n "github"          -d "github"                                                     -r false -t bool    -s r    -l github
-param::add -n "type"            -d "project type [BASH|C++|PlasmoidQML|PlasmoidQML-C++]"        -r false -t string  -s t    -l type
+param::add -n "language"        -d "project language [BASH|C++|PlasmoidQML|PlasmoidQML-C++]"    -r false -t string          -l language
+param::add -n "type"            -d "type [script|plugin|library|Plasmoid|etc]"                  -r false -t string          -l type
+param::add -n "author"          -d "author name"                                                -r false -t string  -s u    -l author
+param::add -n "email"           -d "author email"                                               -r false -t string  -s e    -l email
 param::add -n "count"           -d "<num> count"                                                -r false -t string  -s c    -l count   -D 100
+param::add -n "library"         -d "library module"                                             -r false -t bool            -l library
+param::add -n "classname"       -d "Class name"                                                 -r false -t string          -l classname
+param::add -n "examples"        -d "Show examples"                                              -r false -t flag            -l examples
+param::add -n "comment"         -d "Comment that can be added to an archive"                    -r false -t string          -l comment
 param::parse "$@"
 
 
+if kli::inProject; then
 
-echo "info:  development root   $KLI_DEV_ROOT_DIR"
-echo "info:  detected project   $( kli::detectProject )"
-echo "info:  default license    $KLI_DEFAULT_LICENSE"
-echo "info:  project license    $KLI_PROJECT_LICENSE"
-echo "info:  project type       $KLI_PROJECT_TYPE"
-echo
+    # param scraping
+
+    KLI_CLASSNAME="$( param::get classname )"; [[ -z "$KLI_CLASSNAME" ]] && KLI_CLASSNAME="myClass"
 
 
-#source kli-aur-lib
-source ./kli-github-lib
-source kli-template-lib
+    # info panel
+
+    echo "info:  development root   $KLI_DEV_ROOT_DIR"
+    echo "info:  detected project   $( kli::detectProject )"
+    echo "info:  project license    $KLI_PROJECT_LICENSE"
+    echo "info:  project language   $KLI_PROJECT_LANGUAGE"
+    echo "info:  project type       $KLI_PROJECT_TYPE"
+    echo "info:  project AUR        $KLI_REPO_AUR"
+    echo "info:  project github     $KLI_REPO_GITHUB"
+    echo
 
 
-# actions
-
-if [[ "$( param::getPositional )" == "project config show"                                ]];          then app::message "info echo" "project config";  cat "$CONFIG_LOCAL"; fi
-[[ "$( param::getPositional )" == "project config" && "$( param::get aur )"    == "true"  ]]           && kli::configVarSet PROJECT AUR true
-[[ "$( param::getPositional )" == "project config" && "$( param::get aur )"    == "false" ]]           && kli::configVarSet PROJECT AUR false
-[[ "$( param::getPositional )" == "project config" && "$( param::get github )" == "true"  ]]           && kli::configVarSet PROJECT GITHUB true
-[[ "$( param::getPositional )" == "project config" && "$( param::get github )" == "false" ]]           && kli::configVarSet PROJECT GITHUB false
-[[ "$( param::getPositional )" == "project config" && -n "$( param::get license )"        ]]           && kli::configVarSet PROJECT LICENSE "$( param::get license )"
-if [[ "$( param::getPositional )" == "project config" && -n "$( param::get type )"        ]];          then kli::configVarSet PROJECT TYPE "$( param::get type )";  fi
-
-[[ "$( param::getPositional )" == "git create repo"                                       ]]           && github::createRepo
-
-[[ "$( param::getPositional )" == "template fetch license"   ]] && template::fetchLicense
-[[ "$( param::getPositional )" == "template fetch README.md" ]] && template::fetchREADMEmd
-
-[[ $( param::get version   ) == "true" ]]                       && echo "v$APP_VERSION"
-
-[[ "$( param::getPositional )" == "info show log"   ]]          && app::logShow "$( param::get count )"
-[[ "$( param::getPositional )" == "info trim log"   ]]          && app::logTrim "$( param::get count )"
-[[ "$( param::getPositional )" == "info delete log" ]]          && app::logDelete
+    #source kli-aur-lib
+    source kli-github-lib
+    source kli-install-lib
+    source kli-template-lib
 
 
-#[[ kli::inProject ]] && echo "in" || echo "out"
+    # actions
 
-#kli::detectProject
-#kli::detectRepo
+    if [[ "$( param::getPositional )" == "project config show"                                ]];   then app::message "info echo" "project config";  cat "$CONFIG_LOCAL"; fi
+    if [[ "$( param::getPositional )" == "project show config"                                ]];   then app::message "info echo" "project config";  cat "$CONFIG_LOCAL"; fi
+    [[ "$( param::getPositional )" == "project config" && "$( param::get aur )"    == "true"  ]]    && kli::configVarSet PROJECT AUR true
+    [[ "$( param::getPositional )" == "project config" && "$( param::get aur )"    == "false" ]]    && kli::configVarSet PROJECT AUR false
+    [[ "$( param::getPositional )" == "project config" && "$( param::get github )" == "true"  ]]    && kli::configVarSet PROJECT GITHUB true
+    [[ "$( param::getPositional )" == "project config" && "$( param::get github )" == "false" ]]    && kli::configVarSet PROJECT GITHUB false
+    [[ "$( param::getPositional )" == "project config" && -n "$( param::get license )"        ]]    && kli::configVarSet PROJECT LICENSE      "$( param::get license )"
+    [[ "$( param::getPositional )" == "project config" && -n "$( param::get language )"       ]]    && kli::configVarSet PROJECT LANGUAGE     "$( param::get language )"
+    [[ "$( param::getPositional )" == "project config" && -n "$( param::get type )"           ]]    && kli::configVarSet PROJECT TYPE         "$( param::get type )"
+    [[ "$( param::getPositional )" == "project config" && -n "$( param::get author )"         ]]    && app::configVarSet PROJECT AUTHOR       "$( param::get author )"
+    [[ "$( param::getPositional )" == "project config" && -n "$( param::get email )"          ]]    && app::configVarSet PROJECT AUTHOR_EMAIL "$( param::get email )"
 
-#echo "|$(param::get license )|"
+    [[ "$( param::getPositional )" == "project scaffold"                                      ]]    && template::scaffold
 
+    [[ "$( param::getPositional )" == "project archive"                                       ]]    && kli::archive "$( param::get comment )"
+
+    [[ "$( param::getPositional )" == "github create repo"                                    ]]    && github::createRepo
+    [[ "$( param::getPositional )" == "github push"                                           ]]    && github::updateRepo
+
+    #[[ "$( param::getPositional )" == "install local"                                         ]]    && install::local
+
+    [[ "$( param::getPositional )" == "build clean"                                           ]]    && kli::buildClean
+    [[ "$( param::getPositional )" == "build"                                                 ]]    && kli::build
+    [[ "$( param::getPositional )" == "run"                                                   ]]    && kli::run
+
+    [[ $( param::get version   ) == "true"              ]]                                          && echo "v$APP_VERSION"
+
+    [[ "$( param::getPositional )" == "info show log"   ]]                                          && app::logShow "$( param::get count )"
+    [[ "$( param::getPositional )" == "info trim log"   ]]                                          && app::logTrim "$( param::get count )"
+    [[ "$( param::getPositional )" == "info delete log" ]]                                          && app::logDelete
+
+    [[ "$( param::get examples )" == "true"             ]]                                          && kli::examples
+
+else
+
+    app::message "warning echo" "no project detected"
+
+fi

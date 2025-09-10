@@ -43,3 +43,35 @@ aur::createDir() {
         mkdir -p "$PROJECT_DIR"
     fi
 }
+
+
+aur::createRepo() {
+
+    if [[ "$KLI_REPO_AUR" == true ]]; then
+
+        app::message "info echo log" "repository $KLI_PROJECT AUR init in directory $PWD"
+        git init --initial-branch=main
+
+        if [[ $? ]]; then
+            makepkg --printsrcinfo > .SRCINFO
+            git add .SRCINFO PKGBUILD LICENSE
+        fi
+
+        if [[ $? ]]; then
+            app::message "info echo log" "git initial commit"
+            git commit -m "initial commit"
+        fi
+
+        if [[ $? ]]; then
+            app::message "info echo log" "git create remote repo"
+            gh repo create $PROJECT --public --source=. --remote=origin --push
+            #gh repo create mypackage --public --source=. --remote=origin --push
+        fi
+
+    else
+
+        app::message "info echo" "no AUR repo for this project"
+
+    fi
+}
+

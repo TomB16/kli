@@ -25,110 +25,164 @@
 
 
 source  bashdev-app
+source  bashdev-string
 source  kli-aur-lib
-source  ./kli-github-lib
+source  kli-github-lib
 
 
-template::fetchLicense() {
+TARGET_FILE_MAP="$KLI_PROJECT_DIR"
 
-    local LICENSE_TYPE=$( param::get license )
-    local FILENAME_LICENSE="$KLI_TEMPLATE_ROOT_DIR/licenses/LICENSE-$LICENSE_TYPE"
-    local FILENAME_TARGET="./LICENSE"
 
-    app::message "info echo log" "project license $LICENSE_TYPE template file $FILENAME_LICENSE"
+template::scaffold() {
 
-    if [[ -n "$( kli::detectProject )" ]]; then
+    template::fileMapCreate
+    template::fileMapFetch
 
-        if [[ "$( kli::configVar PROJECT AUR )" == "true" ]]; then
-            FILENAME_TARGET="$( aur::projectDir )/LICENSE"
-            app::message "info echo log" "writing license to $FILENAME_TARGET"
-            aur::createDir
-            cp "$FILENAME_LICENSE" "$FILENAME_TARGET"
-        fi
-
-        if [[ "$( kli::configVar PROJECT GITHUB )" == "true" ]]; then
-            FILENAME_TARGET="$( github::projectDir )/LICENSE"
-            app::message "info echo log" "writing license to $FILENAME_TARGET"
-            github::createDir
-            cp "$FILENAME_LICENSE" "$FILENAME_TARGET"
-        fi
-
-    else
-        app::message "warning echo" "project not detected"
-    fi
 }
 
 
-template::fetchREADMEmd() {
+template::fileMapFetch() {
 
-    local LOCAL_REPO="$( kli::detectRepo )"
-    local LOCAL_PROJECT="$( kli::detectProject )"
+    if [[ -f "$KLI_PROJECT_FILE_MAP" ]]; then
+
+        while IFS= read -r line || [[ -n "$line" ]]; do
+
+            # Skip empty lines and lines starting with ';'
+
+            if [[ ${line:0:1} == '"' ]]; then
+
+                # Parse the CSV fields (quoted values)
+
+                IFS=',' read -r FILENAME TEMPLATE DEVELOPMENT RELEASE REPOSITORY PERMISSIONS <<< "$line"
+
+                # Trim quotes and spaces from each field
+
+                FILENAME="$(    string::trim $FILENAME    )";           FILENAME="$(    template::substituteVars $FILENAME    )"
+                TEMPLATE="$(    string::trim $TEMPLATE    )";           TEMPLATE="$(    template::substituteVars $TEMPLATE    )"
+
+                DEVELOPMENT="$( string::trim $DEVELOPMENT )";           DEVELOPMENT="$( template::substituteVars $DEVELOPMENT )"
+                RELEASE="$(     string::trim $RELEASE     )";           RELEASE="$(     template::substituteVars $RELEASE     )"
+                REPOSITORY="$(  string::trim $REPOSITORY  )";           REPOSITORY="$(  template::substituteVars $REPOSITORY  )"
+                PERMISSIONS="$( string::trim $PERMISSIONS )";           PERMISSIONS="$( template::substituteVars $PERMISSIONS )"
 
 
-    echo "$LOCAL_PROJECT $LOCAL_REPO"
+                # fetch the file
 
-    # confirm we're in a project and repo
+                template::fileMapFetchFile "$FILENAME" "$TEMPLATE" "$DEVELOPMENT" "$RELEASE" "$REPOSITORY" "$PERMISSIONS"
 
-    if   [[ -z "$LOCAL_PROJECT" ]]; then  app::message "warning echo" "project not detected"
-    elif [[ -z "$LOCAL_REPO"    ]]; then  app::message "warning echo" "repo not detected"
-    else
-
-        if [[ "$LOCAL_REPO" == "github" ]]; then
-
-            if [[ "$( git rev-parse --is-inside-work-tree 2>/dev/null )" == "true" ]]; then
-
-
-                local FILENAME_README="$KLI_TEMPLATE_ROOT_DIR/common/$LOCAL_REPO.$KLI_PROJECT_TYPE.README.md"
-                app::message "info echo" "project README.MD template file $FILENAME_README"
-
-                FILENAME_TARGET="$( github::projectDir )/README.md"
-                if   [[ -e "$FILENAME_TARGET"   ]]; then app::message "warning echo" "target file exists $FILENAME_TARGET"
-                elif [[ ! -e "$FILENAME_README" ]]; then app::message "warning echo" "template does not exist $FILENAME_README"
-                else
-                    app::message "info echo log" "copying template $FILENAME_README to $FILENAME_TARGET"
-                    cp "$FILENAME_README" "$FILENAME_TARGET"
-                fi
-
-            else
-                app::message "warning echo" "this is not an established github repo -> kli git create repo"
             fi
-        fi
+
+        done < "$KLI_PROJECT_FILE_MAP"
 
     fi
+
 }
 
 
-kli::detectProjectType() {
+template::fileMapFetchFile(){
 
-    local dir="$PWD"
-    while [[ "$dir" != "/" ]]; do
-        if [[ -f "$dir/CMakeLists.txt" ]]; then
-            echo "cmake"
-            return 0
-        elif [[ -f "$dir/Makefile" ]]; then
-            echo "make"
-            return 0
-        elif [[ -f "$dir/meson.build" ]]; then
-            echo "meson"
-            return 0
-        elif [[ -d "$dir/.git" ]]; then
-            echo "git"
-            return 0
-        elif [[ -f "$dir/package.json" ]]; then
-            echo "node"
-            return 0
-        elif [[ -f "$dir/pyproject.toml" ]] || [[ -f "$dir/setup.py" ]]; then
-            echo "python"
-            return 0
-        elif [[ -f "$dir/.kdev4" ]] || [[ -f "$dir/.kdevproject" ]]; then
-            echo "kdevelop"
-            return 0
-        elif [[ -d "$dir/.plasmoid" ]] || [[ -f "$dir/metadata.desktop" ]]; then
-            echo "plasmoid"
-            return 0
-        fi
-        dir="$(dirname "$dir")"
+    local FILENAME="$(             string::stripQuotes $1 )"
+    local FILENAME_TEMPLATE="$(    string::stripQuotes $2 )"
+    local FILENAME_DEVELOPMENT="$( string::stripQuotes $3 )"
+    local FILENAME_RELEASE="$(     string::stripQuotes $4 )"
+    local FILE_REPOSITORY="$(      string::stripQuotes $5 )"
+    local FILE_PERMISSIONS="$(     string::stripQuotes $6 )"
+
+
+    # fully qualify the filename
+
+    if [[ -z "$REPOSITORY"            ]]; then FILENAME="$KLI_PROJECT_DIR/$FILENAME"
+    elif [[ "$REPOSITORY" == "AUR"    ]]; then FILENAME="$KLI_PROJECT_DIR/AUR/$KLI_PROJECT/$FILENAME"
+    elif [[ "$REPOSITORY" == "github" ]]; then FILENAME="$KLI_PROJECT_DIR/github/$KLI_PROJECT/$FILENAME"
+    fi
+
+
+    # handle file.map row
+
+    if   [[ -z "$FILENAME_TEMPLATE"   ]]; then :
+    elif [[ -e "$FILENAME"            ]]; then app::message "warning echo" "file $FILENAME exists (not overwritten)"
+    elif [[ ! -e "$FILENAME_TEMPLATE" ]]; then app::message "warning echo" "template $FILENAME_TEMPLATE not found"
+    else
+        app::message "info echo log" "project $KLI_PROJECT created $FILENAME from template"
+        FILEPATH="${FILENAME%/*}"
+        mkdir -p "$FILEPATH"
+        cp "$FILENAME_TEMPLATE" "$FILENAME"
+        template::substituteFile "$FILENAME"
+    fi
+
+}
+
+
+KLI_PROJECT_FILE_MAP="$KLI_PROJECT_DIR/file.map"
+
+template::fileMapCreate() {
+
+    # source
+
+    local TEMPLATE_FILE_MAP="$KLI_TEMPLATE_ROOT_DIR/map/$KLI_PROJECT_TYPE.$KLI_PROJECT_LANGUAGE.file.map"
+
+
+    # target
+
+
+
+    # action
+
+    if   [[ ! -f "$TEMPLATE_FILE_MAP"    ]]; then app::message "warning echo" "$KLI_PROJECT_FILE_MAP not found in TEMPLATE library"
+    elif [[   -f "$KLI_PROJECT_FILE_MAP" ]]; then app::message "warning echo" "project already has $KLI_PROJECT_FILE_MAP (not overwritten)"
+    else
+        app::message "info echo log" "project $KLI_PROJECT fetch $TEMPLATE_FILE_MAP for project $KLI_PROJECT"
+        cp "$TEMPLATE_FILE_MAP" "$KLI_PROJECT_FILE_MAP"
+    fi
+
+}
+
+
+# Declare associative array
+declare -A VARMAP=(
+    ["%{TEMPLATES}"]="$HOME/.config/kli/templates"
+    ["%{USER_PLASMOID}"]="$HOME/.local/share/plasma/plasmoids"
+    ["%{GLOBAL_PLASMOID}"]="/usr/share/plasma/plasmoids"
+    ["%{PLASMOID}"]="org.example.ffmpegmonitor"
+    ["%{QT_PLUGIN_PATH}"]="$HOME/.local/share/qt5/plugins"
+    ["%{GLOBAL_QT_PLUGIN}"]="/usr/lib/qt/plugins"
+    ["%{APPNAME}"]="$KLI_PROJECT"
+    ["%{APPNAMELC}"]="$KLI_PROJECT,,"
+    ["%{APPNAMEUC}"]="$KLI_PROJECT^^"
+    ["%{CLASSNAME}"]="$KLI_CLASSNAME"
+    ["%{CLASSNAMELC}"]="$KLI_CLASSNAME,,"
+    ["%{CLASSNAMEUC}"]="$KLI_CLASSNAME^^"
+    ["%{AUTHOR}"]="$KLI_AUTHOR"
+    ["%{YEAR}"]="$( date +%Y )"
+    ["%{CURRENT_YEAR}"]="$( date +%Y )"
+    ["%{DATE}"]="$( date +%F )"
+    ["%{LANGUAGE}"]="$KLI_PROJECT_LANGUAGE"
+    ["%{LICENSE}"]="$KLI_PROJECT_LICENSE"
+)
+
+
+template::substituteVars() {
+    local STR="$1"
+    for KEY in "${!VARMAP[@]}"; do
+        STR="${STR//${KEY}/${VARMAP[$KEY]}}"
     done
-    echo "unknown"
-    return 1
+    printf '%s' "$STR"
+}
+
+
+template::substituteFile() {
+    local FILENAME="${1:?FILENAME required for template::substituteFile}"
+
+    local SED_EXPR=""
+    for KEY in "${!VARMAP[@]}"; do
+        # Escape delimiter characters safely for use in sed
+        local VALUE="${VARMAP[$KEY]}"
+        VALUE="${VALUE//\\/\\\\}"   # Escape backslashes
+        VALUE="${VALUE//\//\\/}"    # Escape forward slashes
+        VALUE="${VALUE//&/\\&}"     # Escape ampersands (sed replacement special)
+        SED_EXPR+="s|$KEY|$VALUE|g;"
+    done
+
+    local TMPFILE="$(mktemp)"
+    sed "$SED_EXPR" "$FILENAME" > "$TMPFILE" && mv "$TMPFILE" "$FILENAME"
 }
